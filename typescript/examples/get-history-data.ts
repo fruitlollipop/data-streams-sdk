@@ -63,7 +63,7 @@ async function main() {
       console.log(formatReport(decodedReport, version));
 
       // Publish decodedReport to ZMQ queue
-      await pub.publish("chain-link-data", JSON.stringify(decodedReport));
+      await pub.publish("chain-link-data", JSON.stringify(decodedReport, (_, v) => typeof v === "bigint" ? v.toString() : v));
       console.log(`  -> Published to ZMQ topic "chain-link-data"`);
     }
 

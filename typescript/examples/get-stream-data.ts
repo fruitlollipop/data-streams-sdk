@@ -10,14 +10,14 @@ async function main() {
     console.error("\nExamples:");
     console.error("  Single feed:");
     console.error(
-      "    npx ts-node examples/stream-reports.ts 0x000359843a543ee2fe414dc14c7e7920ef10f4372990b79d6361cdc0dd1ba782"
+      "    npx ts-node examples/get-stream-data.ts 0x000359843a543ee2fe414dc14c7e7920ef10f4372990b79d6361cdc0dd1ba782"
     );
     console.error("  Multiple feeds:");
     console.error(
-      "    npx ts-node examples/stream-reports.ts 0x000359843a543ee2fe414dc14c7e7920ef10f4372990b79d6361cdc0dd1ba782,0x00036fe43f87884450b4c7e093cd5ed99cac6640d8c2000e6afc02c8838d0265"
+      "    npx ts-node examples/get-stream-data.ts 0x000359843a543ee2fe414dc14c7e7920ef10f4372990b79d6361cdc0dd1ba782,0x00036fe43f87884450b4c7e093cd5ed99cac6640d8c2000e6afc02c8838d0265"
     );
     console.error("  High Availability mode:");
-    console.error("    npx ts-node examples/stream-reports.ts <feedIds> --ha");
+    console.error("    npx ts-node examples/get-stream-data.ts <feedIds> --ha");
     process.exit(1);
   }
 
@@ -85,7 +85,7 @@ async function main() {
         console.log(formatReport(decodedReport, version));
 
         // Publish decodedReport to ZMQ queue
-        await pub.publish("chain-link-data", JSON.stringify(decodedReport));
+        await pub.publish("chain-link-data", JSON.stringify(decodedReport, (_, v) => typeof v === "bigint" ? v.toString() : v));
         console.log(`  -> Published to ZMQ topic "chain-link-data"`);
       } catch (error) {
         console.error(`❌ Error processing report: ${error instanceof Error ? error.message : error}`);
