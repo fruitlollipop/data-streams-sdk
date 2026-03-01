@@ -1,23 +1,23 @@
 import { createClient, decodeReport, LogLevel } from "../src";
 import { getReportVersion, formatReport } from "../src/utils/report";
-import { getCurrentTimestamp } from "../src/utils/time";
+import { getCurrentTimestamp, getThirtyDaysAgoTimestamp, validateTimestampWithin30Days } from "../src/utils/time";
 import { ZmqPublisher } from "../src/utils/zeromq";
 import "dotenv/config";
 
 async function main() {
-  if (process.argv.length < 4) {
-    console.error("Please provide a feed ID and start timestamp as arguments");
+  if (process.argv.length < 2) {
+    console.error("Please provide a feed ID");
     console.error(
-      "Example: npx ts-node examples/get-history-data.ts 0x000359843a543ee2fe414dc14c7e7920ef10f4372990b79d6361cdc0dd1ba782 1754604071 10"
+      "Example: npx ts-node examples/get-history-data.ts 0x000359843a543ee2fe414dc14c7e7920ef10f4372990b79d6361cdc0dd1ba782"
     );
     console.error(`Current timestamp: ${getCurrentTimestamp()}`);
-    console.error("Note: The timestamp must be within the last 30 days.");
     process.exit(1);
   }
 
   const feedId = process.argv[2];
-  const startTime = parseInt(process.argv[3]);
-  const limit = process.argv[4] ? parseInt(process.argv[4]) : undefined;
+  const startTime = process.argv[3] ? parseInt(process.argv[3]) : getThirtyDaysAgoTimestamp();
+  validateTimestampWithin30Days(startTime);
+  const limit = process.argv[4] ? parseInt(process.argv[4]) : 30 * 24 * 60 * 60;
   const version = getReportVersion(feedId);
 
   const zmqEndpoint = process.env.ZMQ_ENDPOINT || "tcp://127.0.0.1:5556";

@@ -24,7 +24,7 @@ async function main() {
   const feedIds = process.argv[2].split(",");
   const haMode = process.argv.includes("--ha");
 
-  const zmqEndpoint = process.env.ZMQ_ENDPOINT || "tcp://127.0.0.1:5555";
+  const zmqEndpoint = process.env.ZMQ_ENDPOINT || "tcp://127.0.0.1:5556";
   const pub = new ZmqPublisher({ endpoint: zmqEndpoint, sendHighWaterMark: 1000 });
 
   console.log("Chainlink Data Streams - Report Streaming");
