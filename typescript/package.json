@@ -80,7 +80,8 @@
     "rimraf": "^5.0.5",
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "zeromq": "^6.5.0"
   },
   "lint-staged": {
     "*.ts": [

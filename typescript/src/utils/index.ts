@@ -6,3 +6,4 @@ export * from "./logger";
 export * from "./report";
 export * from "./origin-discovery";
 export * from "./validation";
+export * from "./zeromq";
