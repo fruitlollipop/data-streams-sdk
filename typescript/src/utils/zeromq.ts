@@ -131,7 +131,7 @@ export interface PubOptions {
 export class ZmqPublisher {
   private socket: Publisher;
   private endpoint: string;
-  private bound = false;
+  private active = false;
 
   constructor(options: PubOptions) {
     this.endpoint = options.endpoint;
@@ -143,9 +143,15 @@ export class ZmqPublisher {
   }
 
   async bind(): Promise<void> {
-    if (this.bound) return;
+    if (this.active) return;
     await this.socket.bind(this.endpoint);
-    this.bound = true;
+    this.active = true;
+  }
+
+  async connect(): Promise<void> {
+    if (this.active) return;
+    this.socket.connect(this.endpoint);
+    this.active = true;
   }
 
   /**
@@ -155,8 +161,8 @@ export class ZmqPublisher {
    * @param data  - message payload
    */
   async publish(topic: string, data: string | Buffer): Promise<void> {
-    if (!this.bound) {
-      throw new ZmqError("Socket not bound. Call bind() first.");
+    if (!this.active) {
+      throw new ZmqError("Socket not active. Call bind() or connect() first.");
     }
     try {
       await this.socket.send([topic, data]);
@@ -169,8 +175,8 @@ export class ZmqPublisher {
   }
 
   async close(): Promise<void> {
-    if (!this.bound) return;
-    this.bound = false;
+    if (!this.active) return;
+    this.active = false;
     this.socket.close();
   }
 }

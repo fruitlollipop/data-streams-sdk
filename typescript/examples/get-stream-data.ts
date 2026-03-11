@@ -24,7 +24,7 @@ async function main() {
   const feedIds = process.argv[2].split(",");
   const haMode = process.argv.includes("--ha");
 
-  const zmqEndpoint = process.env.ZMQ_ENDPOINT || "tcp://127.0.0.1:5556";
+  const zmqEndpoint = process.env.ZMQ_ENDPOINT || "tcp://127.0.0.1:5555";
   const pub = new ZmqPublisher({ endpoint: zmqEndpoint, sendHighWaterMark: 1000 });
 
   console.log("Chainlink Data Streams - Report Streaming");
@@ -34,8 +34,8 @@ async function main() {
   console.log("=".repeat(60));
 
   try {
-    await pub.bind();
-    console.log(`ZMQ publisher bound to ${zmqEndpoint}`);
+    await pub.connect();
+    console.log(`ZMQ publisher connected to ${zmqEndpoint}`);
 
     const client = createClient({
       apiKey: process.env.API_KEY || "YOUR_API_KEY",
@@ -85,8 +85,8 @@ async function main() {
         console.log(formatReport(decodedReport, version));
 
         // Publish decodedReport to ZMQ queue
-        await pub.publish("chain-link-data", JSON.stringify(decodedReport, (_, v) => typeof v === "bigint" ? v.toString() : v));
-        console.log(`  -> Published to ZMQ topic "chain-link-data"`);
+        await pub.publish("chain-link-stream", JSON.stringify(decodedReport, (_, v) => typeof v === "bigint" ? v.toString() : v));
+        console.log(`  -> Published to ZMQ topic "chain-link-stream"`);
       } catch (error) {
         console.error(`❌ Error processing report: ${error instanceof Error ? error.message : error}`);
       }
