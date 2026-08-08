@@ -95,7 +95,7 @@ async function main() {
           if (report.observationsTimestamp > endTime) break;
 
           reportIndex++;
-          console.log(`Raw Report Blob #${reportIndex}: ${report.fullReport}`);
+          // console.log(`Raw Report Blob #${reportIndex}: ${report.fullReport}`);
 
           const decodedData = decodeReport(report.fullReport, report.feedID);
           const decodedReport = {

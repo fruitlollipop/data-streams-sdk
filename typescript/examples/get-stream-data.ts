@@ -68,7 +68,7 @@ async function main() {
         console.log(`\n📈 Report #${reportCount} - ${new Date().toISOString()}`);
 
         // Show raw report blob
-        console.log(`\nRaw Report Blob: ${report.fullReport}`);
+        // console.log(`\nRaw Report Blob: ${report.fullReport}`);
 
         // Decode the report
         const decodedData = decodeReport(report.fullReport, report.feedID);
