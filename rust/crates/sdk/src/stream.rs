@@ -1,21 +1,26 @@
+mod dedup;
 mod establish_connection;
 mod monitor_connection;
 
+use dedup::FeedDeduplicator;
 use establish_connection::connect;
 use monitor_connection::run_stream;
 
-use crate::config::Config;
+use crate::auth::generate_auth_headers;
+use crate::config::{Config, WebSocketHighAvailability};
+use crate::endpoints::get_cll_avail_origins_header;
 
 use chainlink_data_streams_report::feed_id::ID;
 use chainlink_data_streams_report::report::Report;
 
+use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
+    time::{SystemTime, UNIX_EPOCH},
 };
 use tokio::{
     net::TcpStream,
@@ -23,7 +28,7 @@ use tokio::{
     time::{sleep, Duration},
 };
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream as TungsteniteWebSocketStream};
-use tracing::{debug, error, info};
+use tracing::{debug, info, warn};
 
 pub const DEFAULT_WS_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 pub const MIN_WS_RECONNECT_INTERVAL: Duration = Duration::from_millis(1000);
@@ -57,6 +62,8 @@ struct Stats {
     accepted: AtomicUsize,
     /// Total number of deduplicated reports when in HA           
     deduplicated: AtomicUsize,
+    /// Total number of out-of-order reports seen
+    out_of_order: AtomicUsize,
     /// Total number of partial reconnects when in HA        
     partial_reconnects: AtomicUsize,
     /// Total number of full reconnects    
@@ -70,7 +77,7 @@ struct Stats {
 #[derive(Debug)]
 pub enum WebSocketConnection {
     Single(TungsteniteWebSocketStream<MaybeTlsStream<TcpStream>>),
-    Multiple(Vec<TungsteniteWebSocketStream<MaybeTlsStream<TcpStream>>>),
+    Multiple(Vec<(TungsteniteWebSocketStream<MaybeTlsStream<TcpStream>>, String)>),
 }
 
 /// Stream represents a realtime report stream.
@@ -85,7 +92,7 @@ pub struct Stream {
     report_receiver: mpsc::Receiver<WebSocketReport>,
     shutdown_sender: broadcast::Sender<()>,
     stats: Arc<Stats>,
-    water_mark: Arc<Mutex<HashMap<String, usize>>>,
+    dedup: Arc<Mutex<FeedDeduplicator>>,
 }
 
 impl Stream {
@@ -135,15 +142,35 @@ impl Stream {
         let stats = Arc::new(Stats {
             accepted: AtomicUsize::new(0),
             deduplicated: AtomicUsize::new(0),
+            out_of_order: AtomicUsize::new(0),
             partial_reconnects: AtomicUsize::new(0),
             full_reconnects: AtomicUsize::new(0),
             configured_connections: AtomicUsize::new(0),
             active_connections: AtomicUsize::new(0),
         });
 
-        let conn = connect(config, &feed_ids, stats.clone()).await?;
+        let origins: Vec<String> = if config.ws_ha == WebSocketHighAvailability::Enabled {
+            match fetch_ha_origins(config).await {
+                Ok(o) if !o.is_empty() => {
+                    info!("HA mode: discovered {} origins", o.len());
+                    o
+                }
+                Ok(_) => {
+                    warn!("HA mode: no origins returned from HEAD request, degrading to single connection");
+                    vec![]
+                }
+                Err(e) => {
+                    warn!("HA mode: origin discovery failed ({}), degrading to single connection", e);
+                    vec![]
+                }
+            }
+        } else {
+            vec![]
+        };
 
-        let water_mark = Arc::new(Mutex::new(HashMap::new()));
+        let conn = connect(config, &origins, &feed_ids, stats.clone()).await?;
+
+        let dedup = Arc::new(Mutex::new(FeedDeduplicator::new()));
 
         Ok(Stream {
             config: config.clone(),
@@ -153,7 +180,7 @@ impl Stream {
             report_receiver,
             shutdown_sender,
             stats,
-            water_mark,
+            dedup,
         })
     }
 
@@ -170,35 +197,37 @@ impl Stream {
                 let report_sender = self.report_sender.clone();
                 let shutdown_receiver = self.shutdown_sender.subscribe();
                 let stats = self.stats.clone();
-                let water_mark = self.water_mark.clone();
+                let dedup = self.dedup.clone();
                 let config = self.config.clone();
                 let feed_ids = self.feed_ids.clone();
 
                 tokio::spawn(run_stream(
                     stream,
+                    String::new(), // no X-Cll-Origin header for non-HA connections
                     report_sender,
                     shutdown_receiver,
                     stats,
-                    water_mark,
+                    dedup,
                     config,
                     feed_ids,
                 ));
             }
             WebSocketConnection::Multiple(streams) => {
-                for stream in streams {
+                for (stream, origin) in streams {
                     let report_sender = self.report_sender.clone();
                     let shutdown_receiver = self.shutdown_sender.subscribe();
                     let stats = self.stats.clone();
-                    let water_mark = self.water_mark.clone();
+                    let dedup = self.dedup.clone();
                     let config = self.config.clone();
                     let feed_ids = self.feed_ids.clone();
 
                     tokio::spawn(run_stream(
                         stream,
+                        origin,
                         report_sender,
                         shutdown_receiver,
                         stats,
-                        water_mark,
+                        dedup,
                         config,
                         feed_ids,
                     ));
@@ -257,6 +286,7 @@ impl Stream {
         StatsSnapshot {
             accepted,
             deduplicated,
+            out_of_order: self.stats.out_of_order.load(Ordering::SeqCst),
             total_received: accepted + deduplicated,
             partial_reconnects: self.stats.partial_reconnects.load(Ordering::SeqCst),
             full_reconnects: self.stats.full_reconnects.load(Ordering::SeqCst),
@@ -273,6 +303,8 @@ pub struct StatsSnapshot {
     pub accepted: usize,
     /// Total number of deduplicated reports when in HA
     pub deduplicated: usize,
+    /// Total number of out-of-order reports seen
+    pub out_of_order: usize,
     /// Total number of received reports
     pub total_received: usize,
     /// Total number of partial reconnects when in HA
@@ -283,4 +315,140 @@ pub struct StatsSnapshot {
     pub configured_connections: usize,
     /// Current number of active connections
     pub active_connections: usize,
+}
+
+fn parse_origins_from_header(header_value: &str) -> Vec<String> {
+    let inner = header_value
+        .strip_prefix('{')
+        .and_then(|s| s.strip_suffix('}'))
+        .unwrap_or(header_value);
+    if inner.is_empty() {
+        return vec![];
+    }
+    inner
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+fn convert_ws_to_http_scheme(ws_url: &str) -> String {
+    if let Some(rest) = ws_url.strip_prefix("wss://") {
+        format!("https://{}", rest)
+    } else if let Some(rest) = ws_url.strip_prefix("ws://") {
+        format!("http://{}", rest)
+    } else {
+        ws_url.to_string()
+    }
+}
+
+async fn fetch_ha_origins(config: &Config) -> Result<Vec<String>, StreamError> {
+    let http = HttpClient::builder()
+        .danger_accept_invalid_certs(config.insecure_skip_verify.to_bool())
+        .build()
+        .map_err(|e| StreamError::ConnectionError(e.to_string()))?;
+
+    // Parse URL, normalize path to "/", keep scheme+host+port so the HMAC-signed
+    // path "/" matches the actual request path even when ws_url carries a subpath.
+    let http_url = {
+        let mut u = reqwest::Url::parse(&convert_ws_to_http_scheme(&config.ws_url))
+            .map_err(|e| StreamError::ConnectionError(format!("Invalid ws_url: {}", e)))?;
+        u.set_path("/");
+        u.set_query(None);
+        u.to_string()
+    };
+
+    let request_timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("System time error")
+        .as_millis();
+
+    let auth_headers = generate_auth_headers(
+        "HEAD",
+        "/",
+        b"",
+        &config.api_key,
+        &config.api_secret,
+        request_timestamp,
+    )?;
+
+    let response = http
+        .head(&http_url)
+        .headers(auth_headers)
+        .send()
+        .await
+        .map_err(|e| StreamError::ConnectionError(format!("HA origin discovery request failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(StreamError::ConnectionError(format!(
+            "HA origin discovery HEAD request returned status {}",
+            response.status()
+        )));
+    }
+
+    let header_value = response
+        .headers()
+        .get(get_cll_avail_origins_header())
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
+    Ok(parse_origins_from_header(&header_value))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_origins_from_header_empty() {
+        assert_eq!(parse_origins_from_header(""), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_parse_origins_from_header_with_braces() {
+        let result = parse_origins_from_header("{001,002}");
+        assert_eq!(result, vec!["001".to_string(), "002".to_string()]);
+    }
+
+    #[test]
+    fn test_parse_origins_from_header_without_braces() {
+        let result = parse_origins_from_header("001,002");
+        assert_eq!(result, vec!["001".to_string(), "002".to_string()]);
+    }
+
+    #[test]
+    fn test_parse_origins_from_header_single_origin() {
+        let result = parse_origins_from_header("{001}");
+        assert_eq!(result, vec!["001".to_string()]);
+    }
+
+    #[test]
+    fn test_parse_origins_from_header_empty_braces() {
+        assert_eq!(parse_origins_from_header("{}"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_convert_ws_scheme_wss() {
+        assert_eq!(
+            convert_ws_to_http_scheme("wss://ws.dataengine.chain.link"),
+            "https://ws.dataengine.chain.link"
+        );
+    }
+
+    #[test]
+    fn test_convert_ws_scheme_ws() {
+        assert_eq!(
+            convert_ws_to_http_scheme("ws://127.0.0.1:8080"),
+            "http://127.0.0.1:8080"
+        );
+    }
+
+    #[test]
+    fn test_convert_ws_scheme_passthrough() {
+        assert_eq!(
+            convert_ws_to_http_scheme("https://already.https.com"),
+            "https://already.https.com"
+        );
+    }
 }

@@ -1,4 +1,4 @@
-use super::{Stats, StreamError, WebSocketReport};
+use super::{dedup::{FeedDeduplicator, Verdict}, Stats, StreamError, WebSocketReport};
 
 use crate::{config::Config, stream::establish_connection::try_to_reconnect};
 
@@ -6,12 +6,9 @@ use chainlink_data_streams_report::feed_id::ID;
 
 use futures::SinkExt;
 use futures_util::StreamExt;
-use std::{
-    collections::HashMap,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
 };
 use tokio::{
     net::TcpStream,
@@ -24,10 +21,11 @@ use tracing::{error, info, warn};
 
 pub(crate) async fn run_stream(
     mut stream: TungsteniteWebSocketStream<MaybeTlsStream<TcpStream>>,
+    origin: String,   // X-Cll-Origin value for this connection; empty = non-HA
     report_sender: mpsc::Sender<WebSocketReport>,
     mut shutdown_receiver: broadcast::Receiver<()>,
     stats: Arc<Stats>,
-    water_mark: Arc<Mutex<HashMap<String, usize>>>,
+    dedup: Arc<Mutex<FeedDeduplicator>>,
     config: Config,
     feed_ids: Vec<ID>,
 ) -> Result<(), StreamError> {
@@ -46,20 +44,30 @@ pub(crate) async fn run_stream(
                                 info!("Received new report from Data Streams Endpoint.");
                                 if let Ok(report) = serde_json::from_slice::<WebSocketReport>(&data) {
                                     let feed_id = report.report.feed_id.to_hex_string();
-                                    let observations_timestamp = report.report.observations_timestamp;
+                                    let ts = report.report.observations_timestamp as u64;
 
-                                    if water_mark.lock().await.contains_key(&feed_id) && water_mark.lock().await[&feed_id] >= observations_timestamp {
-                                        stats.deduplicated.fetch_add(1, Ordering::SeqCst);
-                                        continue;
+                                    let verdict = dedup.lock().await.check(&feed_id, ts);
+
+                                    match verdict {
+                                        Verdict::Duplicate => {
+                                            stats.deduplicated.fetch_add(1, Ordering::SeqCst);
+                                            continue;
+                                        }
+                                        Verdict::OutOfOrder => {
+                                            stats.out_of_order.fetch_add(1, Ordering::SeqCst);
+                                            if !config.ws_allow_out_of_order {
+                                                stats.deduplicated.fetch_add(1, Ordering::SeqCst);
+                                                continue;
+                                            }
+                                        }
+                                        Verdict::Accept => {}
                                     }
 
                                     report_sender.send(report).await.map_err(|e| {
                                         StreamError::ConnectionError(format!("Failed to send report: {}", e))
                                     })?;
 
-                                    water_mark.lock().await.insert(feed_id, observations_timestamp);
                                     stats.accepted.fetch_add(1, Ordering::SeqCst);
-
                                 } else {
                                     error!("Failed to parse binary message.");
                                 }
@@ -92,7 +100,7 @@ pub(crate) async fn run_stream(
                         error!("Error receiving message: {:?}", e);
                         stats.active_connections.fetch_sub(1, Ordering::SeqCst);
 
-                        stream = handle_reconnection(stats.clone(), &config, &feed_ids).await?;
+                        stream = handle_reconnection(stats.clone(), &config, &origin, &feed_ids).await?;
                     }
                     None => {
                         info!("WebSocket stream closed.");
@@ -102,7 +110,7 @@ pub(crate) async fn run_stream(
                             info!("Stream closed gracefully after shutdown signal.");
                             return Ok(());
                         } else {
-                            stream = handle_reconnection(stats.clone(), &config, &feed_ids).await?;
+                            stream = handle_reconnection(stats.clone(), &config, &origin, &feed_ids).await?;
                         }
                     }
                 }
@@ -126,6 +134,7 @@ pub(crate) async fn run_stream(
 async fn handle_reconnection(
     stats: Arc<Stats>,
     config: &Config,
+    origin: &str,    // X-Cll-Origin value; passed through to try_to_reconnect
     feed_ids: &[ID],
 ) -> Result<TungsteniteWebSocketStream<MaybeTlsStream<TcpStream>>, StreamError> {
     if stats.active_connections.load(Ordering::SeqCst) == 0 {
@@ -134,6 +143,6 @@ async fn handle_reconnection(
         stats.partial_reconnects.fetch_add(1, Ordering::SeqCst);
     }
 
-    let new_stream = try_to_reconnect(stats.clone(), config, feed_ids).await?;
+    let new_stream = try_to_reconnect(stats.clone(), config, origin, feed_ids).await?;
     Ok(new_stream)
 }

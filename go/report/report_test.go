@@ -9,20 +9,21 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 
-	"github.com/smartcontractkit/data-streams-sdk/go/report/common"
-	v1 "github.com/smartcontractkit/data-streams-sdk/go/report/v1"
-	v10 "github.com/smartcontractkit/data-streams-sdk/go/report/v10"
-	v11 "github.com/smartcontractkit/data-streams-sdk/go/report/v11"
-	v12 "github.com/smartcontractkit/data-streams-sdk/go/report/v12"
-	v13 "github.com/smartcontractkit/data-streams-sdk/go/report/v13"
-	v2 "github.com/smartcontractkit/data-streams-sdk/go/report/v2"
-	v3 "github.com/smartcontractkit/data-streams-sdk/go/report/v3"
-	v4 "github.com/smartcontractkit/data-streams-sdk/go/report/v4"
-	v5 "github.com/smartcontractkit/data-streams-sdk/go/report/v5"
-	v6 "github.com/smartcontractkit/data-streams-sdk/go/report/v6"
-	v7 "github.com/smartcontractkit/data-streams-sdk/go/report/v7"
-	v8 "github.com/smartcontractkit/data-streams-sdk/go/report/v8"
-	v9 "github.com/smartcontractkit/data-streams-sdk/go/report/v9"
+	"github.com/smartcontractkit/data-streams-sdk/go/v2/report/common"
+	v1 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v1"
+	v10 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v10"
+	v11 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v11"
+	v12 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v12"
+	v13 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v13"
+	v14 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v14"
+	v2 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v2"
+	v3 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v3"
+	v4 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v4"
+	v5 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v5"
+	v6 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v6"
+	v7 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v7"
+	v8 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v8"
+	v9 "github.com/smartcontractkit/data-streams-sdk/go/v2/report/v9"
 )
 
 func TestReport(t *testing.T) {
@@ -207,6 +208,20 @@ func TestReport(t *testing.T) {
 	if !reflect.DeepEqual(v13Report, rv13) {
 		t.Errorf("expected: %#v, got: %#v", v13Report, rv13)
 	}
+
+	b, err = schema.Pack(v14Report.ReportContext, v14Report.ReportBlob, v14Report.RawRs, v14Report.RawSs, v14Report.RawVs)
+	if err != nil {
+		t.Errorf("failed to encode report: %s", err)
+	}
+
+	rv14, err := Decode[v14.Data](b)
+	if err != nil {
+		t.Errorf("failed to decode report: %s", err)
+	}
+
+	if !reflect.DeepEqual(v14Report, rv14) {
+		t.Errorf("expected: %#v, got: %#v", v14Report, rv14)
+	}
 }
 
 var v1Report = &Report[v1.Data]{
@@ -326,35 +341,44 @@ var v13Report = &Report[v13.Data]{
 	RawVs:         [32]uint8{00, 01, 10, 74, 67, 29, 24, 17, 12, 18, 22, 11, 69, 11, 63, 86, 12, 86, 23, 58, 13, 53, 29, 12, 17, 10, 17, 12, 63, 27, 12, 14},
 }
 
+var v14Report = &Report[v14.Data]{
+	Data:          v14Data,
+	ReportContext: [3][32]uint8{},
+	ReportBlob:    mustPackData(v14Data),
+	RawRs:         [][32]uint8{{00, 01, 10, 74, 67, 29, 24, 17, 12, 18, 22, 11, 69, 11, 63, 86, 12, 86, 23, 58, 13, 53, 29, 12, 17, 10, 17, 12, 63, 27, 12, 14}},
+	RawSs:         [][32]uint8{{01, 02, 10, 73, 65, 19, 14, 27, 42, 48, 52, 18, 39, 116, 67, 85, 13, 82, 33, 48, 23, 33, 49, 32, 67, 50, 37, 32, 63, 77, 14, 64}},
+	RawVs:         [32]uint8{00, 01, 10, 74, 67, 29, 24, 17, 12, 18, 22, 11, 69, 11, 63, 86, 12, 86, 23, 58, 13, 53, 29, 12, 17, 10, 17, 12, 63, 27, 12, 14},
+}
+
 var v1Data = v1.Data{
 	FeedID:                [32]uint8{00, 01, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	BenchmarkPrice:        big.NewInt(100),
 	Bid:                   big.NewInt(100),
 	Ask:                   big.NewInt(100),
 	CurrentBlockNum:       100,
 	CurrentBlockHash:      [32]uint8{0, 0, 7, 4, 7, 2, 4, 1, 82, 38, 2, 9, 6, 5, 6, 8, 2, 8, 5, 5, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 1},
 	ValidFromBlockNum:     768986,
-	CurrentBlockTimestamp: uint64(time.Now().Unix()),
+	CurrentBlockTimestamp: time.Unix(1700000000, 0),
 }
 
 var v2Data = v2.Data{
 	FeedID:                [32]uint8{00, 02, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	BenchmarkPrice:        big.NewInt(100),
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ExpiresAt:             time.Unix(1700000100, 0),
 	LinkFee:               big.NewInt(10),
 	NativeFee:             big.NewInt(10),
 }
 
 var v3Data = v3.Data{
 	FeedID:                [32]uint8{00, 03, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	NativeFee:             big.NewInt(10),
 	LinkFee:               big.NewInt(10),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
+	ExpiresAt:             time.Unix(1700000100, 0),
 	BenchmarkPrice:        big.NewInt(100),
 	Bid:                   big.NewInt(100),
 	Ask:                   big.NewInt(100),
@@ -362,34 +386,34 @@ var v3Data = v3.Data{
 
 var v4Data = v4.Data{
 	FeedID:                [32]uint8{00, 04, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	NativeFee:             big.NewInt(10),
 	LinkFee:               big.NewInt(10),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
+	ExpiresAt:             time.Unix(1700000100, 0),
 	BenchmarkPrice:        big.NewInt(100),
 	MarketStatus:          common.MarketStatusOpen,
 }
 
 var v5Data = v5.Data{
 	FeedID:                [32]uint8{00, 5, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	NativeFee:             big.NewInt(10),
 	LinkFee:               big.NewInt(10),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
+	ExpiresAt:             time.Unix(1700000100, 0),
 	Rate:                  big.NewInt(550),
-	Timestamp:             uint32(time.Now().Unix()),
-	Duration:              uint32(86400),
+	Timestamp:             time.Unix(1700000000, 0),
+	Duration:              86400 * time.Second,
 }
 
 var v6Data = v6.Data{
 	FeedID:                [32]uint8{00, 6, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	NativeFee:             big.NewInt(10),
 	LinkFee:               big.NewInt(10),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
+	ExpiresAt:             time.Unix(1700000100, 0),
 	Price:                 big.NewInt(600),
 	Price2:                big.NewInt(601),
 	Price3:                big.NewInt(602),
@@ -399,64 +423,64 @@ var v6Data = v6.Data{
 
 var v7Data = v7.Data{
 	FeedID:                [32]uint8{00, 7, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	NativeFee:             big.NewInt(10),
 	LinkFee:               big.NewInt(10),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
+	ExpiresAt:             time.Unix(1700000100, 0),
 	ExchangeRate:          big.NewInt(700),
 }
 
 var v8Data = v8.Data{
 	FeedID:                [32]uint8{00, 8, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	NativeFee:             big.NewInt(10),
 	LinkFee:               big.NewInt(10),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
-	LastUpdateTimestamp:   uint64(time.Now().UnixNano() - int64(10*time.Second)),
+	ExpiresAt:             time.Unix(1700000100, 0),
+	LastUpdateTimestamp:   time.Unix(0, 1700000000000000000),
 	MidPrice:              big.NewInt(100),
 	MarketStatus:          1,
 }
 
 var v9Data = v9.Data{
 	FeedID:                [32]uint8{00, 9, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	NativeFee:             big.NewInt(10),
 	LinkFee:               big.NewInt(10),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
+	ExpiresAt:             time.Unix(1700000100, 0),
 	NavPerShare:           big.NewInt(1100),
-	NavDate:               uint64(time.Now().UnixNano()) - 100,
+	NavDate:               time.Unix(0, 1700000000000000000),
 	Aum:                   big.NewInt(11009),
 	Ripcord:               108,
 }
 
 var v10Data = v10.Data{
 	FeedID:                [32]uint8{00, 10, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	NativeFee:             big.NewInt(10),
 	LinkFee:               big.NewInt(10),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
-	LastUpdateTimestamp:   uint64(time.Now().UnixNano() - int64(10*time.Second)),
+	ExpiresAt:             time.Unix(1700000100, 0),
+	LastUpdateTimestamp:   time.Unix(0, 1700000000000000000),
 	Price:                 big.NewInt(1000),
 	MarketStatus:          1,
 	CurrentMultiplier:     big.NewInt(100),
 	NewMultiplier:         big.NewInt(101),
-	ActivationDateTime:    uint32(time.Now().Unix()) + 200,
+	ActivationDateTime:    time.Unix(1700000200, 0),
 	TokenizedPrice:        big.NewInt(1001),
 }
 
 var v11Data = v11.Data{
 	FeedID:                [32]uint8{00, 11, 251, 109, 19, 88, 151, 228, 170, 245, 101, 123, 255, 211, 176, 180, 143, 142, 42, 81, 49, 33, 76, 158, 194, 214, 46, 172, 93, 83, 32, 103},
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	NativeFee:             big.NewInt(10),
 	LinkFee:               big.NewInt(10),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
+	ExpiresAt:             time.Unix(1700000100, 0),
 	Mid:                   big.NewInt(103),
-	LastSeenTimestampNs:   uint64(time.Now().Unix()),
+	LastSeenTimestampNs:   time.Unix(0, 1700000000000000000),
 	Bid:                   big.NewInt(101),
 	BidVolume:             big.NewInt(10002),
 	Ask:                   big.NewInt(105),
@@ -467,29 +491,46 @@ var v11Data = v11.Data{
 
 var v12Data = v12.Data{
 	FeedID:                [32]uint8{00, 12, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	NativeFee:             big.NewInt(10),
 	LinkFee:               big.NewInt(10),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
+	ExpiresAt:             time.Unix(1700000100, 0),
 	NavPerShare:           big.NewInt(1100),
 	NextNavPerShare:       big.NewInt(1101),
-	NavDate:               uint64(time.Now().UnixNano()) - 100,
+	NavDate:               time.Unix(0, 1700000000000000000),
 	Ripcord:               108,
 }
 
 var v13Data = v13.Data{
 	FeedID:                [32]uint8{00, 13, 19, 169, 185, 197, 227, 122, 9, 159, 55, 78, 146, 195, 121, 20, 175, 92, 38, 143, 58, 138, 151, 33, 241, 114, 81, 53, 191, 180, 203, 184},
-	ValidFromTimestamp:    uint32(time.Now().Unix()),
-	ObservationsTimestamp: uint32(time.Now().Unix()),
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
 	NativeFee:             big.NewInt(10),
 	LinkFee:               big.NewInt(10),
-	ExpiresAt:             uint32(time.Now().Unix()) + 100,
+	ExpiresAt:             time.Unix(1700000100, 0),
 	BestAsk:               big.NewInt(75),
 	BestBid:               big.NewInt(78),
 	AskVolume:             10000,
 	BidVolume:             11000,
 	LastTradedPrice:       big.NewInt(76),
+}
+
+var v14Data = v14.Data{
+	FeedID:                [32]uint8{00, 14, 107, 74, 167, 229, 124, 167, 182, 138, 225, 191, 69, 101, 63, 86, 182, 86, 253, 58, 163, 53, 239, 127, 174, 105, 107, 102, 63, 27, 132, 114},
+	ValidFromTimestamp:    time.Unix(1700000000, 0),
+	ObservationsTimestamp: time.Unix(1700000000, 0),
+	NativeFee:             big.NewInt(10),
+	LinkFee:               big.NewInt(10),
+	ExpiresAt:             time.Unix(1700000100, 0),
+	MidPrice:              big.NewInt(100),
+	BidPrice:              big.NewInt(99),
+	AskPrice:              big.NewInt(101),
+	ExpiryTime:            time.Unix(0, 1700000010000000000),
+	FirstDayOfNotice:      time.Unix(0, 1700000005000000000),
+	LastSeenTimestampNs:   time.Unix(0, 1700000000000000000),
+	MarketStatus:          common.MarketStatusOpen,
+	ContractMonth:         "F",
 }
 
 func mustPackData(d interface{}) []byte {
@@ -501,35 +542,35 @@ func mustPackData(d interface{}) []byte {
 		dataSchema = v1.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ObservationsTimestamp,
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.BenchmarkPrice,
 			v.Bid,
 			v.Ask,
 			v.CurrentBlockNum,
 			v.CurrentBlockHash,
 			v.ValidFromBlockNum,
-			v.CurrentBlockTimestamp,
+			uint64(v.CurrentBlockTimestamp.Unix()),
 		}
 	case v2.Data:
 		dataSchema = v2.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
+			uint64(v.ExpiresAt.Unix()),
 			v.BenchmarkPrice,
 		}
 	case v3.Data:
 		dataSchema = v3.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
+			uint64(v.ExpiresAt.Unix()),
 			v.BenchmarkPrice,
 			v.Bid,
 			v.Ask,
@@ -538,11 +579,11 @@ func mustPackData(d interface{}) []byte {
 		dataSchema = v4.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
+			uint64(v.ExpiresAt.Unix()),
 			v.BenchmarkPrice,
 			v.MarketStatus,
 		}
@@ -550,24 +591,24 @@ func mustPackData(d interface{}) []byte {
 		dataSchema = v5.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
+			uint64(v.ExpiresAt.Unix()),
 			v.Rate,
-			v.Timestamp,
-			v.Duration,
+			uint64(v.Timestamp.Unix()),
+			uint32(v.Duration.Seconds()),
 		}
 	case v6.Data:
 		dataSchema = v6.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
+			uint64(v.ExpiresAt.Unix()),
 			v.Price,
 			v.Price2,
 			v.Price3,
@@ -578,23 +619,23 @@ func mustPackData(d interface{}) []byte {
 		dataSchema = v7.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
+			uint64(v.ExpiresAt.Unix()),
 			v.ExchangeRate,
 		}
 	case v8.Data:
 		dataSchema = v8.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
-			v.LastUpdateTimestamp,
+			uint64(v.ExpiresAt.Unix()),
+			uint64(v.LastUpdateTimestamp.UnixNano()),
 			v.MidPrice,
 			v.MarketStatus,
 		}
@@ -602,13 +643,13 @@ func mustPackData(d interface{}) []byte {
 		dataSchema = v9.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
+			uint64(v.ExpiresAt.Unix()),
 			v.NavPerShare,
-			v.NavDate,
+			uint64(v.NavDate.UnixNano()),
 			v.Aum,
 			v.Ripcord,
 		}
@@ -616,30 +657,30 @@ func mustPackData(d interface{}) []byte {
 		dataSchema = v10.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
-			v.LastUpdateTimestamp,
+			uint64(v.ExpiresAt.Unix()),
+			uint64(v.LastUpdateTimestamp.UnixNano()),
 			v.Price,
 			v.MarketStatus,
 			v.CurrentMultiplier,
 			v.NewMultiplier,
-			v.ActivationDateTime,
+			uint64(v.ActivationDateTime.Unix()),
 			v.TokenizedPrice,
 		}
 	case v11.Data:
 		dataSchema = v11.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
+			uint64(v.ExpiresAt.Unix()),
 			v.Mid,
-			v.LastSeenTimestampNs,
+			uint64(v.LastSeenTimestampNs.UnixNano()),
 			v.Bid,
 			v.BidVolume,
 			v.Ask,
@@ -651,30 +692,48 @@ func mustPackData(d interface{}) []byte {
 		dataSchema = v12.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
+			uint64(v.ExpiresAt.Unix()),
 			v.NavPerShare,
 			v.NextNavPerShare,
-			v.NavDate,
+			uint64(v.NavDate.UnixNano()),
 			v.Ripcord,
 		}
 	case v13.Data:
 		dataSchema = v13.Schema()
 		args = []interface{}{
 			v.FeedID,
-			v.ValidFromTimestamp,
-			v.ObservationsTimestamp,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
 			v.NativeFee,
 			v.LinkFee,
-			v.ExpiresAt,
+			uint64(v.ExpiresAt.Unix()),
 			v.BestAsk,
 			v.BestBid,
 			v.AskVolume,
 			v.BidVolume,
 			v.LastTradedPrice,
+		}
+	case v14.Data:
+		dataSchema = v14.Schema()
+		args = []interface{}{
+			v.FeedID,
+			uint64(v.ValidFromTimestamp.Unix()),
+			uint64(v.ObservationsTimestamp.Unix()),
+			v.NativeFee,
+			v.LinkFee,
+			uint64(v.ExpiresAt.Unix()),
+			v.MidPrice,
+			v.BidPrice,
+			v.AskPrice,
+			uint64(v.ExpiryTime.UnixNano()),
+			uint64(v.FirstDayOfNotice.UnixNano()),
+			uint64(v.LastSeenTimestampNs.UnixNano()),
+			v.MarketStatus,
+			v.ContractMonth,
 		}
 	default:
 		panic(fmt.Sprintf("invalid type to pack: %#v", v))
